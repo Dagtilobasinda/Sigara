@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0d0f">
+<title>Freedom Farm</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── TOKENS ─────────────────────────────────────────────── */
+:root{
+  --soil:#1a1208; --grass-dark:#0f1f0a; --grass:#162b0e; --grass-light:#1e3d12;
+  --sky-night:#060a14; --sky-dawn:#0d1a2e; --sky-day:#1a3050; --sky-dusk:#2a1a0e;
+  --fog:#0a0e14;
+  --fp:#7ee8a2;  --fp2:#4fd17a;
+  --stone:#2a2e36; --stone-light:#3a404c; --wood:#4a2e14;
+  --roof:#6b1a1a; --wall:#c8a878; --window:#7ab8e8;
+  --text:#d4e8c2; --text2:#8aaa78; --text-dim:#3a5030;
+  --ui-bg:rgba(8,12,8,0.92); --ui-border:rgba(80,120,60,0.35);
+  --accent:#7ee8a2; --accent2:#e8c47e; --red:#e87e7e;
+  --nav-h:58px;
+  --px:2px; /* pixel size multiplier */
+  --r:4px;
+  --transition:.18s ease;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--sky-night)}
+body{font-family:'Courier New',monospace;color:var(--text);-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select,textarea{font-family:inherit}
+
+/* ── PIXEL FONT FEEL ───────────────────────────────────── */
+.px{image-rendering:pixelated;image-rendering:crisp-edges}
+
+/* ── APP SHELL ──────────────────────────────────────────── */
+#app{
+  display:flex;flex-direction:column;
+  height:100dvh;max-width:480px;margin:0 auto;
+  position:relative;overflow:hidden;background:var(--sky-night)
+}
+.pages{flex:1;overflow:hidden;position:relative}
+.page{
+  position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;
+  opacity:0;pointer-events:none;transform:translateY(6px);
+  transition:opacity var(--transition),transform var(--transition)
+}
+.page.active{opacity:1;pointer-events:all;transform:translateY(0)}
+
+/* ── BOTTOM NAV ─────────────────────────────────────────── */
+.nav{
+  height:var(--nav-h);background:var(--ui-bg);
+  border-top:1px solid var(--ui-border);
+  display:flex;align-items:center;justify-content:space-around;
+  flex-shrink:0;z-index:100;position:relative
+}
+.nb{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 0;background:none;color:var(--text-dim);
+  font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  transition:color var(--transition)
+}
+.nb .ni{font-size:20px;line-height:1;transition:transform var(--transition)}
+.nb.active{color:var(--accent)}
+.nb.active .ni{transform:scale(1.2)}
+
+/* ── CANVAS WORLD ───────────────────────────────────────── */
+#world-canvas{
+  display:block;width:100%;
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  cursor:pointer
+}
+.world-wrap{position:relative;flex-shrink:0}
+
+/* ── WORLD HUD ──────────────────────────────────────────── */
+.hud{
+  position:absolute;top:0;left:0;right:0;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:10px 12px;pointer-events:none;z-index:10
+}
+.hud-pill{
+  background:var(--ui-bg);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:5px 10px;
+  font-size:11px;font-weight:700;letter-spacing:.5px;pointer-events:all
+}
+.hud-fp{color:var(--fp);display:flex;align-items:center;gap:5px}
+.hud-fp span{font-size:15px}
+.hud-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.hud-streak{color:var(--accent2);font-size:11px}
+.hud-dep{color:var(--text2);font-size:10px}
+
+/* ── WORLD BOTTOM BAR ───────────────────────────────────── */
+.world-bottom{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:10px 12px;pointer-events:none;z-index:10;
+  display:flex;align-items:flex-end;justify-content:space-between
+}
+.craving-btn{
+  pointer-events:all;
+  background:rgba(232,126,126,0.15);border:1px solid rgba(232,126,126,0.5);
+  color:#e87e7e;border-radius:var(--r);padding:8px 14px;
+  font-size:11px;font-weight:700;letter-spacing:.5px;
+  transition:all var(--transition)
+}
+.craving-btn:active{transform:scale(0.95)}
+.world-stage-label{
+  pointer-events:none;
+  background:var(--ui-bg);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:5px 10px;
+  font-size:10px;color:var(--text2)
+}
+
+/* ── MODALS ─────────────────────────────────────────────── */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.8);
+  backdrop-filter:blur(4px);z-index:500;
+  display:flex;align-items:flex-end;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity var(--transition)
+}
+.overlay.open{opacity:1;pointer-events:all}
+.sheet{
+  background:#0d120d;border:1px solid var(--ui-border);
+  border-radius:12px 12px 0 0;width:100%;max-width:480px;
+  max-height:90dvh;overflow-y:auto;padding:20px 16px 32px;
+  transform:translateY(100%);transition:transform .28s cubic-bezier(.4,0,.2,1)
+}
+.overlay.open .sheet{transform:translateY(0)}
+.sheet-handle{width:32px;height:3px;background:var(--ui-border);border-radius:2px;margin:0 auto 16px}
+.sheet h2{font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text);margin-bottom:12px}
+
+/* ── SHOP GRID ──────────────────────────────────────────── */
+.shop-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
+.shop-tab{
+  background:none;border:1px solid var(--ui-border);color:var(--text2);
+  border-radius:var(--r);padding:5px 10px;font-size:10px;font-weight:700;
+  letter-spacing:.5px;white-space:nowrap;transition:all var(--transition)
+}
+.shop-tab.active{background:rgba(126,232,162,.12);border-color:var(--fp);color:var(--fp)}
+.shop-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.shop-item{
+  background:rgba(255,255,255,.03);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:12px 10px;text-align:center;
+  cursor:pointer;transition:all var(--transition)
+}
+.shop-item:active{transform:scale(.96)}
+.shop-item.locked{opacity:.4;pointer-events:none}
+.shop-item.owned{border-color:rgba(126,232,162,.4);background:rgba(126,232,162,.05)}
+.si-icon{font-size:28px;margin-bottom:6px;display:block}
+.si-name{font-size:11px;font-weight:700;color:var(--text);margin-bottom:3px}
+.si-cost{font-size:10px;color:var(--fp)}
+.si-owned{font-size:10px;color:var(--text2)}
+
+/* ── PROGRESS PAGE ──────────────────────────────────────── */
+.prog-page{padding:14px 12px calc(var(--nav-h)+16px)}
+.prog-header{
+  background:rgba(126,232,162,.06);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:16px;margin-bottom:10px;
+  display:grid;grid-template-columns:1fr 1fr;gap:10px
+}
+.stat-box{text-align:center}
+.stat-v{font-size:22px;font-weight:700;color:var(--fp);line-height:1}
+.stat-l{font-size:9px;color:var(--text2);letter-spacing:.5px;margin-top:3px;text-transform:uppercase}
+.sec-title{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin:16px 0 8px}
+.health-timeline{display:flex;flex-direction:column;gap:8px}
+.hl-item{display:flex;align-items:center;gap:10px}
+.hl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.hl-dot.done{background:var(--fp)}
+.hl-dot.pending{background:var(--ui-border)}
+.hl-text{font-size:11px;color:var(--text2)}
+.hl-text b{color:var(--text);font-size:11px}
+.chart-box{
+  background:rgba(255,255,255,.03);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:12px;margin-bottom:10px
+}
+.chart-title{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:8px}
+.chart-wrap{height:140px;position:relative}
+
+/* ── GALLERY ─────────────────────────────────────────────── */
+.gallery-page{padding:14px 12px calc(var(--nav-h)+16px)}
+.gallery-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}
+.gallery-scroll::-webkit-scrollbar{height:2px}
+.gallery-scroll::-webkit-scrollbar-thumb{background:var(--ui-border);border-radius:1px}
+.snap-thumb{
+  flex-shrink:0;width:80px;background:rgba(255,255,255,.04);
+  border:1px solid var(--ui-border);border-radius:var(--r);padding:8px 6px;
+  text-align:center;cursor:pointer;transition:all var(--transition)
+}
+.snap-thumb.active{border-color:var(--fp);background:rgba(126,232,162,.08)}
+.snap-thumb.empty{opacity:.35;pointer-events:none}
+.snap-label{font-size:9px;font-weight:700;color:var(--text2);margin-bottom:4px;letter-spacing:.5px}
+.snap-preview{width:100%;aspect-ratio:1;border-radius:2px;background:var(--soil);image-rendering:pixelated}
+.gallery-main{
+  border:1px solid var(--ui-border);border-radius:var(--r);overflow:hidden;
+  position:relative
+}
+#gallery-canvas{display:block;width:100%;image-rendering:pixelated}
+.gallery-info{padding:10px 12px;background:rgba(255,255,255,.03)}
+.gi-row{display:flex;justify-content:space-between;font-size:10px;padding:2px 0;color:var(--text2)}
+.gi-row span{color:var(--text)}
+
+/* ── SETTINGS PAGE ──────────────────────────────────────── */
+.settings-page{padding:14px 12px calc(var(--nav-h)+16px)}
+.setting-group{
+  background:rgba(255,255,255,.03);border:1px solid var(--ui-border);
+  border-radius:var(--r);margin-bottom:10px;overflow:hidden
+}
+.setting-row{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 14px;border-bottom:1px solid var(--ui-border)
+}
+.setting-row:last-child{border-bottom:none}
+.sr-icon{font-size:16px;flex-shrink:0}
+.sr-info{flex:1}
+.sr-label{font-size:11px;font-weight:700;color:var(--text)}
+.sr-sub{font-size:9px;color:var(--text2);margin-top:1px}
+.sr-action{font-size:10px;color:var(--fp);font-weight:700;cursor:pointer;padding:4px 6px}
+.form-lbl{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);margin-bottom:5px;display:block}
+.form-inp{
+  width:100%;background:rgba(255,255,255,.05);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:9px 11px;color:var(--text);font-size:13px;
+  outline:none;transition:border-color var(--transition)
+}
+.form-inp:focus{border-color:var(--fp)}
+.form-inp::placeholder{color:var(--text-dim)}
+.form-group{margin-bottom:12px}
+.btn-primary{
+  width:100%;background:rgba(126,232,162,.15);border:1px solid var(--fp);
+  color:var(--fp);border-radius:var(--r);padding:11px;font-size:12px;
+  font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all var(--transition)
+}
+.btn-primary:active{transform:scale(.97)}
+.btn-danger{
+  width:100%;background:rgba(232,126,126,.1);border:1px solid var(--red);
+  color:var(--red);border-radius:var(--r);padding:11px;font-size:12px;
+  font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all var(--transition);margin-top:8px
+}
+.btn-ghost{
+  width:100%;background:none;border:1px solid var(--ui-border);
+  color:var(--text2);border-radius:var(--r);padding:11px;font-size:12px;
+  font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all var(--transition);margin-top:8px
+}
+
+/* ── CRAVING MODAL ───────────────────────────────────────── */
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{
+  background:none;border:1px solid var(--ui-border);color:var(--text2);
+  border-radius:100px;padding:5px 10px;font-size:10px;font-weight:700;cursor:pointer;
+  transition:all var(--transition)
+}
+.chip.sel{background:rgba(126,232,162,.15);border-color:var(--fp);color:var(--fp)}
+.int-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.int-slider{flex:1;accent-color:var(--fp);cursor:pointer}
+.int-val{font-size:22px;font-weight:700;color:var(--fp);min-width:24px;text-align:right}
+
+/* ── TIMER ───────────────────────────────────────────────── */
+.timer-wrap{text-align:center;padding:16px 0}
+.timer-ring{position:relative;width:120px;height:120px;margin:0 auto 12px}
+.t-svg{width:100%;height:100%;transform:rotate(-90deg)}
+.t-bg{fill:none;stroke:rgba(255,255,255,.08);stroke-width:5}
+.t-arc{fill:none;stroke:var(--fp);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset 1s linear}
+.t-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:28px;font-weight:700;color:var(--text)}
+.coach-box{
+  background:rgba(126,232,162,.06);border-left:2px solid var(--fp);
+  border-radius:0 var(--r) var(--r) 0;padding:10px 12px;
+  font-size:11px;color:var(--text2);line-height:1.6;margin:10px 0;font-style:italic
+}
+.outcome-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.ob{border-radius:var(--r);padding:11px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid}
+.ob-yes{background:rgba(126,232,162,.12);border-color:var(--fp);color:var(--fp)}
+.ob-no{background:rgba(232,126,126,.1);border-color:var(--red);color:var(--red)}
+
+/* ── INSIGHT CARD ────────────────────────────────────────── */
+.insight-float{
+  position:absolute;bottom:calc(var(--nav-h)+8px);left:50%;transform:translateX(-50%);
+  width:calc(100% - 24px);max-width:456px;
+  background:var(--ui-bg);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:10px 12px;z-index:50;
+  display:flex;align-items:flex-start;gap:8px;
+  animation:slideUp .3s ease
+}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.insight-close{background:none;border:none;color:var(--text-dim);font-size:14px;cursor:pointer;flex-shrink:0;padding:0 0 0 4px}
+.insight-text{font-size:10px;color:var(--text2);line-height:1.6;flex:1}
+.insight-cat{font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--fp);display:block;margin-bottom:3px}
+
+/* ── ACHIEVEMENT FLASH ───────────────────────────────────── */
+.ach-flash{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%);
+  background:var(--ui-bg);border:1px solid var(--accent2);
+  border-radius:var(--r);padding:10px 16px;z-index:9000;
+  display:flex;align-items:center;gap:8px;
+  opacity:0;pointer-events:none;transition:opacity .3s;max-width:320px
+}
+.ach-flash.show{opacity:1}
+.ach-flash-icon{font-size:22px}
+.ach-flash-text{font-size:11px}
+.ach-flash-name{color:var(--accent2);font-weight:700;display:block}
+.ach-flash-desc{color:var(--text2);font-size:10px}
+
+/* ── TOAST ───────────────────────────────────────────────── */
+#toast{
+  position:fixed;bottom:calc(var(--nav-h)+14px);left:50%;
+  transform:translateX(-50%) translateY(6px);
+  background:#0d120d;border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:8px 16px;font-size:10px;font-weight:700;
+  color:var(--text);z-index:8000;opacity:0;pointer-events:none;
+  transition:all .25s;white-space:nowrap
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── ONBOARD ─────────────────────────────────────────────── */
+#onboard{
+  position:fixed;inset:0;background:#070b07;z-index:2000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 24px;text-align:center
+}
+.ob-logo{font-size:52px;margin-bottom:8px;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.ob-title{font-size:20px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--fp);margin-bottom:4px}
+.ob-sub{font-size:11px;color:var(--text2);margin-bottom:28px;line-height:1.6}
+.ob-form{width:100%;max-width:360px;text-align:left}
+
+/* ── SCROLLBAR ───────────────────────────────────────────── */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:var(--ui-border);border-radius:2px}
+
+/* ── ACHIEVEMENT GALLERY (in settings) ──────────────────── */
+.ach-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ach-card{
+  background:rgba(255,255,255,.03);border:1px solid var(--ui-border);
+  border-radius:var(--r);padding:10px 6px;text-align:center;transition:all var(--transition)
+}
+.ach-card.unlocked{border-color:rgba(232,196,126,.4);background:rgba(232,196,126,.05)}
+.ach-card.locked{opacity:.35}
+.ac-icon{font-size:22px;margin-bottom:4px}
+.ac-name{font-size:8px;font-weight:700;color:var(--text);line-height:1.3}
+.ac-badge{display:inline-block;background:var(--accent2);color:#1a1000;border-radius:100px;padding:1px 5px;font-size:7px;font-weight:700;margin-top:3px}
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<!-- Onboarding -->
+<div id="onboard">
+  <div class="ob-logo">🌱</div>
+  <div class="ob-title">Freedom Farm</div>
+  <div class="ob-sub">Build a world with your recovery.<br>Every cigarette not smoked grows your land.</div>
+  <div class="ob-form">
+    <div class="form-group">
+      <label class="form-lbl">When was your last cigarette?</label>
+      <input type="datetime-local" class="form-inp" id="ob-dt">
+    </div>
+    <div class="form-group">
+      <label class="form-lbl">Cigarettes per day</label>
+      <input type="number" class="form-inp" id="ob-cpd" placeholder="e.g. 20" min="1" max="100">
+    </div>
+    <div class="form-group">
+      <label class="form-lbl">Cost per pack ($)</label>
+      <input type="number" class="form-inp" id="ob-cost" placeholder="e.g. 12" min="0.01" step="0.01">
+    </div>
+    <div class="form-group">
+      <label class="form-lbl">Cigarettes per pack</label>
+      <input type="number" class="form-inp" id="ob-cpp" placeholder="e.g. 20" min="1" max="50">
+    </div>
+    <button class="btn-primary" id="ob-start">Plant Your First Seed 🌱</button>
+  </div>
+</div>
+
+<!-- Achievement Flash -->
+<div class="ach-flash" id="ach-flash">
+  <span class="ach-flash-icon" id="af-icon"></span>
+  <div class="ach-flash-text">
+    <span class="ach-flash-name" id="af-name"></span>
+    <span class="ach-flash-desc" id="af-desc"></span>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════ MODALS ═══════════════════ -->
+
+<!-- Craving Modal -->
+<div class="overlay" id="craving-overlay">
+  <div class="sheet" id="craving-sheet">
+    <div class="sheet-handle"></div>
+    <div id="craving-s1">
+      <h2>🆘 Craving Detected</h2>
+      <div class="sec-title" style="margin-top:0">Trigger</div>
+      <div class="chip-row" id="trigger-chips">
+        <button class="chip" data-t="Coffee">☕ Coffee</button>
+        <button class="chip" data-t="After Meal">🍽️ After Meal</button>
+        <button class="chip" data-t="Stress">😤 Stress</button>
+        <button class="chip" data-t="Social">👥 Social</button>
+        <button class="chip" data-t="Boredom">😴 Boredom</button>
+        <button class="chip" data-t="Alcohol">🍺 Alcohol</button>
+        <button class="chip" data-t="Driving">🚗 Driving</button>
+        <button class="chip" data-t="Other">❓ Other</button>
+      </div>
+      <div class="sec-title">Intensity</div>
+      <div class="int-row">
+        <span style="font-size:9px;color:var(--text-dim)">1</span>
+        <input type="range" class="int-slider" id="int-slider" min="1" max="10" value="5">
+        <span style="font-size:9px;color:var(--text-dim)">10</span>
+        <div class="int-val" id="int-val">5</div>
+      </div>
+      <button class="btn-primary" id="cr-start-btn">Start 90s Timer</button>
+    </div>
+    <div id="craving-s2" style="display:none">
+      <h2>⏱️ Ride It Out</h2>
+      <div class="timer-wrap">
+        <div class="timer-ring">
+          <svg class="t-svg" viewBox="0 0 100 100">
+            <circle class="t-bg" cx="50" cy="50" r="44"/>
+            <circle class="t-arc" id="t-arc" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="0"/>
+          </svg>
+          <div class="t-num" id="t-num">90</div>
+        </div>
+        <div style="font-size:10px;color:var(--text2)">Cravings peak and fade. Breathe.</div>
+      </div>
+      <div class="coach-box" id="coach-box"></div>
+      <button class="btn-ghost" id="cr-skip-btn">Skip Timer</button>
+    </div>
+    <div id="craving-s3" style="display:none">
+      <h2 style="text-align:center">Did it pass? 🌿</h2>
+      <p style="font-size:10px;color:var(--text2);text-align:center;margin:6px 0 16px">Your honest answer helps you understand your patterns.</p>
+      <div class="outcome-btns">
+        <button class="ob ob-yes" id="cr-yes">✅ Yes — defeated</button>
+        <button class="ob ob-no" id="cr-no">😔 No — I smoked</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Build Modal -->
+<div class="overlay" id="build-overlay">
+  <div class="sheet" id="build-sheet">
+    <div class="sheet-handle"></div>
+    <h2 id="build-title">Build</h2>
+    <div id="build-stages"></div>
+    <button class="btn-ghost" id="build-close" style="margin-top:10px">Close</button>
+  </div>
+</div>
+
+<!-- Shop Modal -->
+<div class="overlay" id="shop-overlay">
+  <div class="sheet" id="shop-sheet">
+    <div class="sheet-handle"></div>
+    <h2>🛒 Shop</h2>
+    <div class="shop-tabs" id="shop-tabs"></div>
+    <div class="shop-grid" id="shop-grid"></div>
+    <button class="btn-ghost" id="shop-close" style="margin-top:12px">Close</button>
+  </div>
+</div>
+
+<!-- Settings Edit Modal -->
+<div class="overlay" id="sedit-overlay">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Edit Profile</h2>
+    <div class="form-group">
+      <label class="form-lbl">Last cigarette</label>
+      <input type="datetime-local" class="form-inp" id="se-dt">
+    </div>
+    <div class="form-group">
+      <label class="form-lbl">Cigarettes per day</label>
+      <input type="number" class="form-inp" id="se-cpd" min="1" max="100">
+    </div>
+    <div class="form-group">
+      <label class="form-lbl">Cost per pack ($)</label>
+      <input type="number" class="form-inp" id="se-cost" min="0.01" step="0.01">
+    </div>
+    <div class="form-group">
+      <label class="form-lbl">Cigarettes per pack</label>
+      <input type="number" class="form-inp" id="se-cpp" min="1" max="50">
+    </div>
+    <button class="btn-primary" id="se-save">Save Changes</button>
+    <button class="btn-ghost" id="se-cancel" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ APP ══════════════════════ -->
+<div id="app">
+  <div class="pages">
+
+    <!-- ── WORLD PAGE ── -->
+    <div class="page active" id="page-world">
+      <div class="world-wrap" id="world-wrap">
+        <canvas id="world-canvas"></canvas>
+        <div class="hud">
+          <div class="hud-pill hud-fp">
+            <span>🌿</span>
+            <span id="fp-display">0 FP</span>
+          </div>
+          <div class="hud-right">
+            <div class="hud-pill hud-streak" id="streak-display">🔥 ×1.0</div>
+            <div class="hud-pill hud-dep" id="dep-display">dep 100%</div>
+          </div>
+        </div>
+        <div class="world-bottom">
+          <button class="craving-btn" id="open-craving">⚡ Craving</button>
+          <div class="world-stage-label" id="stage-label">Empty Land</div>
+        </div>
+      </div>
+      <!-- Insight float -->
+      <div id="insight-area" style="position:relative;height:0"></div>
+    </div>
+
+    <!-- ── PROGRESS PAGE ── -->
+    <div class="page" id="page-progress">
+      <div class="prog-page">
+        <div class="sec-title" style="margin-top:0">Overview</div>
+        <div class="prog-header">
+          <div class="stat-box">
+            <div class="stat-v" id="p-days">0</div>
+            <div class="stat-l">Days Free</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-v" id="p-avoided">0</div>
+            <div class="stat-l">Cigs Avoided</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-v" id="p-saved">$0</div>
+            <div class="stat-l">Saved</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-v" id="p-fp">0</div>
+            <div class="stat-l">Total FP</div>
+          </div>
+        </div>
+
+        <div class="sec-title">Health Timeline</div>
+        <div class="health-timeline" id="health-tl"></div>
+
+        <div class="sec-title">Craving Stats</div>
+        <div class="prog-header" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat-box">
+            <div class="stat-v" id="p-ctotal" style="font-size:18px">0</div>
+            <div class="stat-l">Total</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-v" id="p-cwin" style="font-size:18px;color:var(--fp)">0</div>
+            <div class="stat-l">Defeated</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-v" id="p-crate" style="font-size:18px;color:var(--accent2)">0%</div>
+            <div class="stat-l">Win Rate</div>
+          </div>
+        </div>
+
+        <div class="sec-title">Trigger Breakdown</div>
+        <div class="chart-box">
+          <div class="chart-title">Cravings by Trigger</div>
+          <div class="chart-wrap"><canvas id="chart-triggers"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <div class="chart-title">Daily Cravings (14 days)</div>
+          <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── GALLERY PAGE ── -->
+    <div class="page" id="page-gallery">
+      <div class="gallery-page">
+        <div class="sec-title" style="margin-top:0">Time Gallery</div>
+        <p style="font-size:9px;color:var(--text-dim);margin-bottom:10px">Your world captured at each milestone.</p>
+        <div class="gallery-scroll" id="gallery-thumbs"></div>
+        <div class="gallery-main">
+          <canvas id="gallery-canvas" width="320" height="240"></canvas>
+          <div class="gallery-info" id="gallery-info">
+            <div class="gi-row"><b>Day</b><span id="gi-day">—</span></div>
+            <div class="gi-row"><b>FP earned</b><span id="gi-fp">—</span></div>
+            <div class="gi-row"><b>Stage</b><span id="gi-stage">—</span></div>
+            <div class="gi-row"><b>Buildings</b><span id="gi-builds">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS PAGE ── -->
+    <div class="page" id="page-settings">
+      <div class="settings-page">
+        <div class="sec-title" style="margin-top:0">Profile</div>
+        <div class="setting-group">
+          <div class="setting-row">
+            <span class="sr-icon">🕐</span>
+            <div class="sr-info">
+              <div class="sr-label">Last Cigarette</div>
+              <div class="sr-sub" id="s-lastcig">—</div>
+            </div>
+            <span class="sr-action" id="open-sedit">Edit</span>
+          </div>
+          <div class="setting-row">
+            <span class="sr-icon">🚬</span>
+            <div class="sr-info">
+              <div class="sr-label">Cigarettes / day</div>
+              <div class="sr-sub" id="s-cpd">—</div>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="sr-icon">💰</span>
+            <div class="sr-info">
+              <div class="sr-label">Pack cost</div>
+              <div class="sr-sub" id="s-cost">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec-title">Achievements</div>
+        <div class="ach-grid" id="ach-gallery"></div>
+
+        <div class="sec-title">Data</div>
+        <div class="setting-group">
+          <div class="setting-row">
+            <span class="sr-icon">📤</span>
+            <div class="sr-info">
+              <div class="sr-label">Export Data</div>
+              <div class="sr-sub">Download JSON backup</div>
+            </div>
+            <span class="sr-action" id="export-btn">Export</span>
+          </div>
+          <div class="setting-row">
+            <span class="sr-icon">📥</span>
+            <div class="sr-info">
+              <div class="sr-label">Import Data</div>
+              <div class="sr-sub">Restore from backup</div>
+            </div>
+            <span class="sr-action" id="import-btn">Import</span>
+            <input type="file" id="import-file" accept=".json" style="display:none">
+          </div>
+          <div class="setting-row">
+            <span class="sr-icon">🗑️</span>
+            <div class="sr-info">
+              <div class="sr-label">Reset World</div>
+              <div class="sr-sub">Cannot be undone</div>
+            </div>
+            <span class="sr-action" style="color:var(--red)" id="reset-btn">Reset</span>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:9px;color:var(--text-dim);margin-top:24px;padding-bottom:8px">Freedom Farm v1.0 · Built with 🌱</div>
+      </div>
+    </div>
+
+  </div>
+
+  <nav class="nav">
+    <button class="nb active" data-page="world"><span class="ni">🌱</span>World</button>
+    <button class="nb" data-page="progress"><span class="ni">📊</span>Progress</button>
+    <button class="nb" data-page="gallery"><span class="ni">🖼️</span>Gallery</button>
+    <button class="nb" data-page="settings"><span class="ni">⚙️</span>Settings</button>
+  </nav>
+</div>
+
+<script>
+/* ============================================================
+   STORAGE
+   ============================================================ */
+const S = {
+  get:(k,d=null)=>{ try{const v=localStorage.getItem('ff_'+k);return v!==null?JSON.parse(v):d}catch{return d} },
+  set:(k,v)=>{ try{localStorage.setItem('ff_'+k,JSON.stringify(v))}catch(e){console.warn(e)} },
+  del:(k)=>localStorage.removeItem('ff_'+k)
+};
+
+/* ============================================================
+   GAME CONFIG / CONSTANTS
+   ============================================================ */
+const WORLD_W = 32, WORLD_H = 24; // tiles
+const TILE = 14; // px per tile on canvas
+
+// Tile type IDs
+const T = {
+  EMPTY:0,GRASS:1,DIRT:2,WATER:3,STONE_PATH:4,
+  TREE:10,BUSH:11,FLOWER:12,
+  HOUSE_F:20,HOUSE_W:21,HOUSE_R:22,HOUSE_DONE:23,
+  FARM_F:30,FARM_G:31,FARM_R:32, // fallow/growing/ready
+  BARN_F:40,BARN_DONE:41,
+  WELL:50,FENCE:51,LAMP:52,MARKET:53,
+  CHICKEN:60,COW:61,HORSE:62,
+  ROAD:70
+};
+
+// Color palette for tile rendering
+const COL = {
+  [T.EMPTY]:'#0a0e08',
+  [T.GRASS]:'#1e3d12',
+  [T.DIRT]:'#3a2810',
+  [T.WATER]:'#0a2840',
+  [T.STONE_PATH]:'#2e3238',
+  [T.TREE]:'#14400e',
+  [T.BUSH]:'#1c4a10',
+  [T.FLOWER]:'#3a1a4a',
+  [T.HOUSE_F]:'#2a1808',
+  [T.HOUSE_W]:'#4a3018',
+  [T.HOUSE_R]:'#6a1a12',
+  [T.HOUSE_DONE]:'#5a3520',
+  [T.FARM_F]:'#3a2808',
+  [T.FARM_G]:'#1a3a08',
+  [T.FARM_R]:'#1a5a08',
+  [T.BARN_F]:'#2a1808',
+  [T.BARN_DONE]:'#8b2c0c',
+  [T.WELL]:'#4a5060',
+  [T.FENCE]:'#5a3a18',
+  [T.LAMP]:'#5a5040',
+  [T.MARKET]:'#3a1a5a',
+  [T.CHICKEN]:'#c8b870',
+  [T.COW]:'#c8c0b0',
+  [T.HORSE]:'#704830',
+  [T.ROAD]:'#242830'
+};
+
+/* ============================================================
+   SHOP CATALOG
+   ============================================================ */
+const SHOP_ITEMS = {
+  buildings:[
+    {id:'house',   icon:'🏠', name:'House',      cost:80,  unlockDay:0,  desc:'A small home for your settlers'},
+    {id:'barn',    icon:'🏚️', name:'Barn',       cost:120, unlockDay:7,  desc:'Store crops and shelter animals'},
+    {id:'market',  icon:'🏪', name:'Market',     cost:200, unlockDay:14, desc:'Trade goods for bonus FP'},
+    {id:'inn',     icon:'🏨', name:'Inn',        cost:350, unlockDay:30, desc:'Attracts travelers and visitors'},
+    {id:'hall',    icon:'🏛️', name:'Town Hall',  cost:600, unlockDay:60, desc:'Unlocks advanced city buildings'},
+  ],
+  crops:[
+    {id:'carrot',  icon:'🥕', name:'Carrots',    cost:15,  unlockDay:3,  desc:'Fast crop, low yield'},
+    {id:'potato',  icon:'🥔', name:'Potatoes',   cost:25,  unlockDay:7,  desc:'Medium crop, good yield'},
+    {id:'corn',    icon:'🌽', name:'Corn',       cost:40,  unlockDay:14, desc:'Slow crop, high yield'},
+    {id:'wheat',   icon:'🌾', name:'Wheat',      cost:60,  unlockDay:21, desc:'Staple crop, steady income'},
+    {id:'pumpkin', icon:'🎃', name:'Pumpkin',    cost:100, unlockDay:45, desc:'Seasonal, high FP bonus'},
+  ],
+  animals:[
+    {id:'chicken', icon:'🐔', name:'Chicken',    cost:50,  unlockDay:5,  desc:'Produces eggs daily'},
+    {id:'cow',     icon:'🐄', name:'Cow',        cost:120, unlockDay:14, desc:'Produces milk, high FP'},
+    {id:'horse',   icon:'🐴', name:'Horse',      cost:200, unlockDay:21, desc:'Boosts travel and FP rate'},
+    {id:'sheep',   icon:'🐑', name:'Sheep',      cost:150, unlockDay:28, desc:'Wool for trading'},
+    {id:'pig',     icon:'🐷', name:'Pig',        cost:90,  unlockDay:18, desc:'Converts waste to FP'},
+  ],
+  decor:[
+    {id:'well',    icon:'⛲', name:'Well',       cost:30,  unlockDay:2,  desc:'Brightens the land'},
+    {id:'fence',   icon:'🪵', name:'Fence',      cost:20,  unlockDay:1,  desc:'Define your plot'},
+    {id:'lamp',    icon:'🕯️', name:'Lamp Post',  cost:35,  unlockDay:4,  desc:'Light up your world'},
+    {id:'flower',  icon:'🌸', name:'Flowers',    cost:10,  unlockDay:0,  desc:'A touch of beauty'},
+    {id:'bridge',  icon:'🌉', name:'Bridge',     cost:80,  unlockDay:20, desc:'Connect across water'},
+    {id:'fountain',icon:'⛲', name:'Fountain',   cost:180, unlockDay:40, desc:'Town centerpiece'},
+  ]
+};
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+const ACHIEVEMENTS = [
+  {id:'h1',   icon:'⏰', name:'1 Hour',         desc:'1 hour smoke-free',          check:(g,s)=>daysSince(s.lastCig)>=1/24},
+  {id:'h24',  icon:'🌅', name:'1 Day',          desc:'24 hours smoke-free',        check:(g,s)=>daysSince(s.lastCig)>=1},
+  {id:'d3',   icon:'🌿', name:'3 Days',         desc:'3 days free',                check:(g,s)=>daysSince(s.lastCig)>=3},
+  {id:'w1',   icon:'🌟', name:'1 Week',         desc:'Seven days of freedom',      check:(g,s)=>daysSince(s.lastCig)>=7},
+  {id:'w2',   icon:'🔥', name:'2 Weeks',        desc:'Two weeks strong',           check:(g,s)=>daysSince(s.lastCig)>=14},
+  {id:'m1',   icon:'🏆', name:'1 Month',        desc:'A full month free',          check:(g,s)=>daysSince(s.lastCig)>=30},
+  {id:'m3',   icon:'💚', name:'3 Months',       desc:'Quarter year liberated',     check:(g,s)=>daysSince(s.lastCig)>=90},
+  {id:'m6',   icon:'🦅', name:'6 Months',       desc:'Half a year of clean air',   check:(g,s)=>daysSince(s.lastCig)>=180},
+  {id:'y1',   icon:'👑', name:'1 Year',         desc:'A full year of freedom',     check:(g,s)=>daysSince(s.lastCig)>=365},
+  {id:'c1',   icon:'🎯', name:'1st Victory',    desc:'First craving defeated',     check:(g)=>cravings().filter(c=>c.passed).length>=1},
+  {id:'c10',  icon:'⚡', name:'10 Victories',   desc:'10 cravings defeated',       check:(g)=>cravings().filter(c=>c.passed).length>=10},
+  {id:'c50',  icon:'💯', name:'50 Victories',   desc:'50 cravings defeated',       check:(g)=>cravings().filter(c=>c.passed).length>=50},
+  {id:'coff', icon:'☕', name:'Coffee Free',    desc:'Beat a coffee craving',      check:(g)=>cravings().some(c=>c.trigger==='Coffee'&&c.passed)},
+  {id:'str',  icon:'😤', name:'Stress Buster',  desc:'Beat a stress craving',      check:(g)=>cravings().some(c=>c.trigger==='Stress'&&c.passed)},
+  {id:'b1',   icon:'🏚️', name:'Builder',       desc:'Built first building',       check:(g)=>Object.keys(g.built||{}).length>=1},
+  {id:'farm', icon:'🌾', name:'Farmer',         desc:'Planted first crop',         check:(g)=>(g.crops||[]).length>=1},
+  {id:'anim', icon:'🐔', name:'Farmer Pro',     desc:'Owned first animal',         check:(g)=>(g.animals||[]).length>=1},
+  {id:'fp1k', icon:'💎', name:'1000 FP',        desc:'Earned 1000 Freedom Points', check:(g)=>(g.totalFP||0)>=1000},
+  {id:'fp5k', icon:'🌈', name:'5000 FP',        desc:'Earned 5000 Freedom Points', check:(g)=>(g.totalFP||0)>=5000},
+];
+
+/* ============================================================
+   COACH MESSAGES
+   ============================================================ */
+const COACH = {
+  Coffee:['The coffee is not asking for a cigarette. The habit is.','Thousands enjoy coffee every day without a cigarette. You are one of them now.','Re-associate coffee with freedom, not with smoke.','The taste of coffee improves without smoke. Notice it.'],
+  'After Meal':['The meal is complete. Nothing else needed.','Take a short walk — it breaks the trigger and aids digestion.','Brush your teeth. It creates a clean finish that feels satisfying.','The post-meal craving peaks in under 3 minutes.'],
+  Stress:['You have handled stress before without smoking. You will now.','Nicotine does not relieve stress — it relieves the withdrawal it created.','Five slow breaths deliver more calm than any cigarette ever did.','Name the stressor. Smoking would not solve it.'],
+  Social:['You are allowed to say: I do not smoke anymore.','You can stand outside with others without lighting up. You know this.','Your identity is changing. That is a fact, not a loss.','Social pressure to smoke is usually in your imagination.'],
+  Boredom:['Boredom is not an emergency. Breathe, move, create.','Your hands want something to do — let them till your virtual field.','Take a 3-minute walk. Boredom cravings dissolve with movement.','Boredom was never solved by a cigarette. It just gave boredom something harmful to do.'],
+  Alcohol:['You planned for this. Hold firm.','The craving is amplified by alcohol, not made real. Wait 5 minutes.','One cigarette would restart what you have worked to stop. Not worth it.','Drink water between drinks. Cravings weaken with hydration.'],
+  Driving:['Turn up the music. Driving cravings break with a change of stimulus.','Open the window. Fresh air resets the trigger.','Your car is becoming a clean-air space. Protect it.'],
+  Other:['Whatever the trigger — you have handled worse. You know what to do.','Label it. Observe it. Let it pass. It always passes.','Your future self is asking you to decline. Listen.','You are not deprived. You are free.']
+};
+const COACH_INTENSE=['This is your brain fighting hardest. This is exactly the fight you signed up for. Win it.','Strong cravings peak quickly and fade fast. The strength is irrelevant.','Intense cravings are your brain testing you. Pass the test.','Feel it fully. Notice where it lives in your body. Then watch it shrink.'];
+function coachMsg(trigger,intensity){
+  if(intensity>=8){return COACH_INTENSE[Math.floor(Math.random()*COACH_INTENSE.length)]}
+  const pool=(COACH[trigger]||COACH.Other);return pool[Math.floor(Math.random()*pool.length)];
+}
+
+/* ============================================================
+   INSIGHTS
+   ============================================================ */
+const INSIGHTS=[
+  {cat:'Science',text:'Nicotine reaches the brain in 8 seconds. That speed is why the habit forms so fast and feels so automatic.'},
+  {cat:'Timeline',text:'Within 20 minutes of quitting, your heart rate and blood pressure drop toward normal.'},
+  {cat:'Timeline',text:'After 12 hours, carbon monoxide in your blood drops to normal. Oxygen flows freely again.'},
+  {cat:'Timeline',text:'Within 2–12 weeks, circulation improves and lung function increases noticeably.'},
+  {cat:'Timeline',text:'After 1–9 months, coughing and shortness of breath decrease as your cilia recover.'},
+  {cat:'Timeline',text:'After 1 year, your excess heart disease risk is already half that of a smoker.'},
+  {cat:'Reframe',text:'You are not giving up cigarettes. You are escaping a trap that costs you money, health, and freedom.'},
+  {cat:'Reframe',text:'Non-smokers do not feel deprived because they lack cigarettes. They feel free. That is available to you right now.'},
+  {cat:'Reframe',text:'Cigarettes did not help you relax. Nicotine is a stimulant. The "relief" was withdrawal anxiety finally being fed.'},
+  {cat:'Reframe',text:'There is no such thing as just one cigarette. One re-ignites the cycle. The freedom you have built stays intact only by continuing.'},
+  {cat:'Science',text:'A craving is not a command. It is a signal — like a wave. Waves rise, peak, and fall. You do not have to act on every wave.'},
+  {cat:'Science',text:'Most cravings last 3–5 minutes. Rarely longer than 10. Every timer you complete is accurate data about your experience.'},
+  {cat:'Habit',text:'The habit loop: trigger, routine, reward. Nicotine hijacked your reward system. You can build new loops with new routines.'},
+  {cat:'Habit',text:'After 66 days, new behaviors become automatic. You are building smoke-free habits that will feel natural.'},
+  {cat:'Motivation',text:'Every craving you survive without smoking makes the next one weaker. You are literally rewiring your brain.'},
+  {cat:'Motivation',text:'The first 72 hours are the hardest. After that, physical withdrawal is mostly over. What remains is psychological — and manageable.'},
+  {cat:'Motivation',text:'When a craving hits, name it: "This is a craving. It will pass in minutes." Naming it reduces its power.'},
+  {cat:'Money',text:'A pack-a-day habit at $12/pack costs over $4,300/year. That is a vacation, an investment, or a year of abundance.'},
+  {cat:'Health',text:'Your lungs have a remarkable ability to heal. Capacity improves even after years of smoking.'},
+  {cat:'Health',text:'Smoking damages taste and smell. Within days of quitting, food becomes more vivid and smells sharpen.'},
+  {cat:'Health',text:'After quitting, skin blood flow improves. Many ex-smokers notice their skin looks healthier within weeks.'},
+  {cat:'Mindfulness',text:'When a craving hits: breathe in 4 counts, hold 4, out 6. This activates your parasympathetic nervous system — actual calm.'},
+  {cat:'Mindfulness',text:'Urge surfing: observe the craving without fighting it. Watch it rise, peak, and fall — from the safety of shore.'},
+  {cat:'Mindfulness',text:'Try postponing: "I will wait 10 minutes." Usually the craving disappears before the time is up.'},
+  {cat:'Reframe',text:'Your brain is currently lying to you — telling you that you need a cigarette. Addicted brains do this. It is not the truth.'},
+  {cat:'Science',text:'Nicotine changes the number of receptors in your brain. After quitting, they slowly return to normal over about a month.'},
+  {cat:'Science',text:'Sleep often improves significantly after the first few weeks. Nicotine disrupts REM sleep cycles.'},
+  {cat:'Health',text:'Within 5 years of quitting, stroke risk reduces to that of a non-smoker. Your blood vessels are rebuilding.'},
+  {cat:'Motivation',text:'You do not have to quit forever right now. You only have to not smoke in this moment. Then the next. Then the next.'},
+  {cat:'Motivation',text:'Smokers think non-smokers are missing out. Ask any long-term ex-smoker — they would never go back. The freedom is real.'},
+  {cat:'Health',text:'Carbon monoxide from cigarettes reduces blood oxygen. Within 24 hours of quitting, this reverses completely.'},
+  {cat:'Science',text:'Withdrawal symptoms peak 48–72 hours after quitting and resolve within 2–4 weeks. The worst is almost certainly behind you.'},
+  {cat:'Habit',text:'The physical ritual of smoking — the hand motion, the routine — can be partially satisfied with other habits. Be intentional about them.'},
+  {cat:'Reframe',text:'You were paying to feel normal. Nicotine created the discomfort it then temporarily relieved. The whole transaction was a trick.'},
+  {cat:'Timeline',text:'After 10 years, lung cancer risk drops to half that of a smoker. The body heals on a long timescale.'},
+  {cat:'Motivation',text:'The average successful quitter has tried multiple times. Every attempt is learning. You are not failing — you are advancing.'},
+  {cat:'Science',text:'Dopamine regulation improves over months after quitting. Many ex-smokers report improved mood, focus, and energy.'},
+  {cat:'Mindfulness',text:'Notice where a craving lives in your body. Tension in the jaw? Restless hands? Observing the physical sensation reduces its power.'},
+  {cat:'Reframe',text:'The discomfort of quitting is temporary. The freedom is permanent. Compare the two timescales honestly.'},
+  {cat:'Motivation',text:'Each morning you wake up smoke-free is a morning your lungs took another step toward healing. Small steps accumulate.'},
+  {cat:'Health',text:'Within one month of quitting, the tiny hair-like cilia in your lungs start functioning again, clearing debris more effectively.'},
+  {cat:'Habit',text:'Identify your three highest-risk times of day and prepare alternatives in advance. Preparation beats willpower every time.'},
+  {cat:'Reframe',text:'Imagine your body as land recovering from damage. Each smoke-free day, new growth emerges. That is not metaphor — it is biology.'},
+  {cat:'Motivation',text:'Your smoke-free streak is a real asset you have built. Protect it the way you would protect anything you value.'},
+  {cat:'Science',text:'Exercise, even a 10-minute walk, reduces craving intensity and duration. Your farm is always ready for a tour.'},
+  {cat:'Reframe',text:'You are not white-knuckling through life without cigarettes. You are building the version of yourself that never needed them.'},
+  {cat:'Timeline',text:'After 15 years, the risk of coronary heart disease equals that of someone who has never smoked. That is a complete restoration.'},
+  {cat:'Motivation',text:'Every FP point in your farm represents a real cigarette your body did not have to process. That is not a game number. That is your health.'},
+  {cat:'Mindfulness',text:'When a craving arrives during a social situation, have one sentence ready: "No thanks, I quit." Practice it until it feels natural.'},
+  {cat:'Reframe',text:'The cigarette you are not smoking right now is not something you are missing. It is something you have chosen not to destroy yourself with.'}
+];
+
+/* ============================================================
+   WORLD STAGE DEFINITIONS
+   ============================================================ */
+const STAGES=[
+  {name:'Empty Land',  minDays:0,   minFP:0,    fog:.92, bright:.3,  sat:.2},
+  {name:'First Farm',  minDays:1,   minFP:30,   fog:.75, bright:.45, sat:.4},
+  {name:'Growing Farm',minDays:7,   minFP:150,  fog:.55, bright:.6,  sat:.6},
+  {name:'Village',     minDays:30,  minFP:500,  fog:.35, bright:.75, sat:.75},
+  {name:'Small Town',  minDays:90,  minFP:1500, fog:.18, bright:.88, sat:.88},
+  {name:'Town',        minDays:180, minFP:4000, fog:.08, bright:.95, sat:.95},
+  {name:'Freedom City',minDays:365, minFP:10000,fog:.02, bright:1,   sat:1}
+];
+
+/* ============================================================
+   HEALTH MILESTONES
+   ============================================================ */
+const HEALTH_MILES=[
+  {days:0,    label:'20 min',  text:'Heart rate begins to drop'},
+  {days:0.5,  label:'12 hours',text:'Blood oxygen returns to normal'},
+  {days:2,    label:'2 days',  text:'Smell and taste start recovering'},
+  {days:14,   label:'2 weeks', text:'Circulation noticeably improves'},
+  {days:30,   label:'1 month', text:'Lung capacity increasing'},
+  {days:90,   label:'3 months',text:'Coughing and breathlessness decrease'},
+  {days:365,  label:'1 year',  text:'Heart disease risk halved'},
+  {days:1825, label:'5 years', text:'Stroke risk equals non-smoker'},
+  {days:3650, label:'10 years',text:'Lung cancer risk halved'}
+];
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function settings(){return S.get('settings',{lastCig:null,cpd:20,costPack:12,cpp:20})}
+function gameState(){return S.get('game',{
+  totalFP:0,spentFP:0,built:{},crops:[],animals:[],owned:[],
+  streak:0,lastStreakDay:null
+})}
+function cravings(){return S.get('cravings',[])}
+function snapshots(){return S.get('snapshots',{})}
+function achievements(){return S.get('achievements',{})}
+
+function daysSince(iso){
+  if(!iso)return 0;
+  return Math.max(0,(Date.now()-new Date(iso).getTime())/86400000);
+}
+function fmtDate(iso){
+  if(!iso)return'—';
+  return new Date(iso).toLocaleString([],{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function todayKey(){
+  const d=new Date();
+  return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function calcFP(){
+  const s=settings();
+  const days=daysSince(s.lastCig);
+  const cpd=parseFloat(s.cpd)||20;
+  const cost=parseFloat(s.costPack)||12;
+  const cpp=parseFloat(s.cpp)||20;
+  const avoided=Math.floor(days*cpd);
+  const saved=(avoided*(cost/cpp)).toFixed(2);
+  // FP = cigarettes avoided + time bonus
+  const rawFP=Math.floor(days*cpd*1.5);
+  return{days,avoided,saved,rawFP,cpd,cost,cpp};
+}
+function getCurrentFP(){
+  const g=gameState();
+  const{rawFP}=calcFP();
+  const streak=g.streak||1;
+  const multiplier=Math.min(2,1+(streak*0.1));
+  const earned=Math.floor(rawFP*multiplier);
+  return Math.max(0,earned-g.spentFP);
+}
+function getTotalFP(){
+  const{rawFP}=calcFP();
+  const g=gameState();
+  const streak=g.streak||1;
+  const multiplier=Math.min(2,1+(streak*0.1));
+  return Math.floor(rawFP*multiplier);
+}
+function getDependency(){
+  const days=daysSince(settings().lastCig);
+  // Drops from 100% towards 0% over ~180 days (never fully 0)
+  return Math.max(2,Math.round(100*Math.exp(-days/60)));
+}
+function getCurrentStage(){
+  const days=daysSince(settings().lastCig);
+  const fp=getTotalFP();
+  let stage=STAGES[0];
+  for(const st of STAGES){
+    if(days>=st.minDays&&fp>=st.minFP)stage=st;
+  }
+  return stage;
+}
+function getStreak(){
+  const g=gameState();
+  const days=Math.floor(daysSince(settings().lastCig));
+  if(g.lastStreakDay!==days){
+    const ng={...g,streak:days,lastStreakDay:days};
+    S.set('game',ng);
+  }
+  return Math.min(10,days);
+}
+function getMultiplier(){return Math.min(2,1+(getStreak()*0.1)).toFixed(1)}
+
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+function showInsight(){
+  const idx=Math.floor(Math.random()*INSIGHTS.length);
+  const c=INSIGHTS[idx];
+  const area=document.getElementById('insight-area');
+  // Remove any existing
+  const old=document.getElementById('insight-float');
+  if(old)old.remove();
+  const el=document.createElement('div');
+  el.className='insight-float';el.id='insight-float';
+  el.innerHTML=`<div class="insight-text"><span class="insight-cat">${c.cat}</span>${c.text}</div><button class="insight-close" onclick="this.parentElement.remove()">✕</button>`;
+  area.parentElement.appendChild(el);
+  setTimeout(()=>el.remove&&el.remove(),12000);
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+let activePage='world';
+const nbs=document.querySelectorAll('.nb');
+const pgs=document.querySelectorAll('.page');
+
+function navigate(id){
+  activePage=id;
+  pgs.forEach(p=>p.classList.toggle('active',p.id==='page-'+id));
+  nbs.forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+  if(id==='world'){renderHUD();drawWorld()}
+  if(id==='progress'){renderProgress()}
+  if(id==='gallery'){renderGallery()}
+  if(id==='settings'){renderSettingsPage()}
+}
+nbs.forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.page)));
+
+/* ============================================================
+   CANVAS WORLD RENDERER
+   ============================================================ */
+let worldMap=null; // 2D array [y][x]
+let animFrame=0;
+let animals=[];
+
+function initMap(){
+  worldMap=[];
+  for(let y=0;y<WORLD_H;y++){
+    worldMap[y]=[];
+    for(let x=0;x<WORLD_W;x++){
+      worldMap[y][x]=T.EMPTY;
+    }
+  }
+}
+
+function generateWorld(){
+  // Start with base grass in center
+  const cx=Math.floor(WORLD_W/2),cy=Math.floor(WORLD_H/2);
+  const stage=getCurrentStage();
+  const stageIdx=STAGES.indexOf(stage);
+  const days=daysSince(settings().lastCig);
+  const g=gameState();
+
+  initMap();
+
+  // Radius of cleared land based on stage
+  const radii=[2,4,7,10,13,16,18];
+  const radius=radii[Math.min(stageIdx,radii.length-1)];
+
+  // Fill with grass in radius
+  for(let y=0;y<WORLD_H;y++){
+    for(let x=0;x<WORLD_W;x++){
+      const dx=x-cx,dy=y-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<=radius){
+        worldMap[y][x]=T.GRASS;
+        // Add some variety
+        if(Math.random()<0.05)worldMap[y][x]=T.TREE;
+        else if(Math.random()<0.04)worldMap[y][x]=T.BUSH;
+      }
+    }
+  }
+
+  // Place a dirt path cross from center
+  if(stageIdx>=1){
+    for(let i=-radius;i<=radius;i++){
+      if(cy+i>=0&&cy+i<WORLD_H)worldMap[cy+i][cx]=T.DIRT;
+      if(cx+i>=0&&cx+i<WORLD_W)worldMap[cy][cx+i]=T.DIRT;
+    }
+  }
+
+  // Stone path at higher stages
+  if(stageIdx>=3){
+    for(let i=-3;i<=3;i++){
+      worldMap[cy][cx+i]=T.STONE_PATH;
+      worldMap[cy+i][cx]=T.STONE_PATH;
+    }
+  }
+
+  // Water patch
+  if(stageIdx>=2){
+    for(let y=cy-2;y<=cy-1;y++)for(let x=cx+4;x<=cx+6;x++){
+      if(y>=0&&y<WORLD_H&&x>=0&&x<WORLD_W)worldMap[y][x]=T.WATER;
+    }
+  }
+
+  // Farm plots
+  if(stageIdx>=1&&(g.crops||[]).length>0){
+    const fc=g.crops.length;
+    for(let i=0;i<Math.min(fc,6);i++){
+      const fx=cx-4+(i%3),fy=cy+2+Math.floor(i/3);
+      if(fx>=0&&fx<WORLD_W&&fy>=0&&fy<WORLD_H)worldMap[fy][fx]=T.FARM_G;
+    }
+  }
+
+  // Buildings from owned list
+  const built=g.built||{};
+  let bx=cx+2,by=cy+1;
+  Object.keys(built).forEach(bid=>{
+    const s=built[bid];
+    let tile=T.HOUSE_W;
+    if(bid==='barn'||bid==='barn_d')tile=T.BARN_DONE;
+    else if(bid==='market')tile=T.MARKET;
+    else if(s>=6)tile=T.HOUSE_DONE;
+    else if(s>=4)tile=T.HOUSE_R;
+    else if(s>=2)tile=T.HOUSE_W;
+    else tile=T.HOUSE_F;
+    if(bx<WORLD_W&&by<WORLD_H)worldMap[by][bx]=tile;
+    bx+=2;if(bx>cx+8){bx=cx+2;by+=2;}
+  });
+
+  // Decor
+  const owned=g.owned||[];
+  if(owned.includes('well'))worldMap[cy-1][cx+1]=T.WELL;
+  if(owned.includes('fence')){
+    for(let i=-1;i<=1;i++)if(cy+3<WORLD_H)worldMap[cy+3][cx+i]=T.FENCE;
+  }
+  if(owned.includes('lamp')){
+    worldMap[cy+1][cx+3]=T.LAMP;
+  }
+  if(owned.includes('flower')){
+    for(let i=0;i<3;i++)if(cx-5+i>=0)worldMap[cy+1][cx-5+i]=T.FLOWER;
+  }
+
+  // Animals as moving entities
+  animals=[];
+  const alist=g.animals||[];
+  alist.forEach((a,i)=>{
+    const angle=(i/alist.length)*Math.PI*2;
+    animals.push({
+      type:a,
+      x:(cx+Math.cos(angle)*3)*TILE,
+      y:(cy+Math.sin(angle)*3)*TILE,
+      vx:(Math.random()-.5)*.3,
+      vy:(Math.random()-.5)*.3,
+      emoji:a==='chicken'?'🐔':a==='cow'?'🐄':a==='horse'?'🐴':a==='sheep'?'🐑':'🐷'
+    });
+  });
+}
+
+function drawWorld(){
+  const canvas=document.getElementById('world-canvas');
+  const wrap=document.getElementById('world-wrap');
+  if(!canvas||!wrap)return;
+
+  const W=Math.min(window.innerWidth,480);
+  const H=Math.floor(W*(WORLD_H/WORLD_W));
+  canvas.width=W;canvas.height=H;
+  wrap.style.height=H+'px';
+
+  const ctx=canvas.getContext('2d');
+  const tW=W/WORLD_W,tH=H/WORLD_H;
+
+  if(!worldMap)generateWorld();
+
+  const stage=getCurrentStage();
+  const fogLevel=stage.fog;
+  const dep=getDependency()/100;
+
+  // Time of day tint
+  const hr=new Date().getHours();
+  let skyCol;
+  if(hr>=5&&hr<8)       skyCol=[15,26,48];
+  else if(hr>=8&&hr<18) skyCol=[26,48,80];
+  else if(hr>=18&&hr<21)skyCol=[42,26,14];
+  else                   skyCol=[6,10,20];
+
+  // Season tint
+  const mo=new Date().getMonth();
+  let seasonTint=[0,0,0];
+  if(mo>=2&&mo<=4)seasonTint=[0,8,0];      // spring
+  else if(mo>=5&&mo<=7)seasonTint=[4,4,0]; // summer
+  else if(mo>=8&&mo<=10)seasonTint=[12,4,-4]; // autumn
+  else seasonTint=[-6,0,10];               // winter
+
+  ctx.fillStyle=`rgb(${skyCol[0]},${skyCol[1]},${skyCol[2]})`;
+  ctx.fillRect(0,0,W,H);
+
+  animFrame++;
+
+  // Draw tiles
+  for(let y=0;y<WORLD_H;y++){
+    for(let x=0;x<WORLD_W;x++){
+      const t=worldMap[y][x];
+      let base=COL[t]||'#0a0e08';
+
+      // Parse base color
+      const r=parseInt(base.slice(1,3),16);
+      const g2=parseInt(base.slice(3,5),16);
+      const b=parseInt(base.slice(5,7),16);
+
+      // Apply brightness/saturation based on stage
+      const br=stage.bright;
+      const nr=Math.min(255,Math.floor(r*br+seasonTint[0]));
+      const ng=Math.min(255,Math.floor(g2*br+seasonTint[1]));
+      const nb2=Math.min(255,Math.floor(b*br+seasonTint[2]));
+
+      ctx.fillStyle=`rgb(${nr},${ng},${nb2})`;
+      ctx.fillRect(Math.floor(x*tW),Math.floor(y*tH),Math.ceil(tW)+1,Math.ceil(tH)+1);
+
+      // Tile detail markers
+      if(t===T.TREE){
+        ctx.fillStyle=`rgba(30,90,20,${0.7*br})`;
+        ctx.fillRect(Math.floor(x*tW+tW*.2),Math.floor(y*tH+tH*.1),Math.ceil(tW*.6),Math.ceil(tH*.7));
+        ctx.fillStyle=`rgba(60,120,30,${0.5*br})`;
+        ctx.fillRect(Math.floor(x*tW+tW*.3),Math.floor(y*tH),Math.ceil(tW*.4),Math.ceil(tH*.5));
+      }else if(t===T.WATER){
+        const wave=Math.sin((animFrame*.03)+(x+y)*.5)*.3+.5;
+        ctx.fillStyle=`rgba(20,80,160,${wave*br})`;
+        ctx.fillRect(Math.floor(x*tW),Math.floor(y*tH+tH*.5),Math.ceil(tW),Math.ceil(tH*.5));
+      }else if(t===T.HOUSE_DONE||t===T.HOUSE_R){
+        // Roof triangle
+        ctx.fillStyle=`rgba(140,40,30,${br})`;
+        ctx.beginPath();
+        ctx.moveTo(Math.floor(x*tW),Math.floor(y*tH+tH*.4));
+        ctx.lineTo(Math.floor(x*tW+tW*.5),Math.floor(y*tH));
+        ctx.lineTo(Math.floor(x*tW+tW),Math.floor(y*tH+tH*.4));
+        ctx.fill();
+        // Window
+        if(t===T.HOUSE_DONE){
+          ctx.fillStyle=`rgba(120,200,240,${.8*br})`;
+          ctx.fillRect(Math.floor(x*tW+tW*.3),Math.floor(y*tH+tH*.45),Math.ceil(tW*.35),Math.ceil(tH*.3));
+          // Chimney smoke animation
+          if(animFrame%8<4){
+            ctx.fillStyle=`rgba(200,200,200,0.15)`;
+            ctx.fillRect(Math.floor(x*tW+tW*.7),Math.floor(y*tH-tH*.2),3,4);
+          }
+        }
+      }else if(t===T.WELL){
+        ctx.fillStyle=`rgba(80,90,100,${br})`;
+        ctx.fillRect(Math.floor(x*tW+tW*.2),Math.floor(y*tH+tH*.2),Math.ceil(tW*.6),Math.ceil(tH*.4));
+        ctx.fillStyle=`rgba(60,70,80,${br})`;
+        ctx.fillRect(Math.floor(x*tW),Math.floor(y*tH+tH*.6),Math.ceil(tW),Math.ceil(tH*.15));
+      }else if(t===T.LAMP){
+        const glow=(Math.sin(animFrame*.08)*.15+.85)*br;
+        ctx.fillStyle=`rgba(255,220,100,${glow*.7})`;
+        ctx.beginPath();
+        ctx.arc(Math.floor(x*tW+tW*.5),Math.floor(y*tH+tH*.3),tW*.6,0,Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle=`rgba(100,90,60,${br})`;
+        ctx.fillRect(Math.floor(x*tW+tW*.45),Math.floor(y*tH+tH*.3),Math.ceil(tW*.1),Math.ceil(tH*.7));
+      }else if(t===T.FARM_G){
+        // Crop rows
+        ctx.fillStyle=`rgba(60,180,30,${.7*br})`;
+        for(let row=0;row<3;row++){
+          ctx.fillRect(Math.floor(x*tW+2),Math.floor(y*tH+tH*.15+row*tH*.28),Math.ceil(tW-4),2);
+        }
+      }else if(t===T.FLOWER){
+        ctx.fillStyle=`rgba(240,80,200,${.8*br})`;
+        ctx.beginPath();
+        ctx.arc(Math.floor(x*tW+tW*.5),Math.floor(y*tH+tH*.5),tW*.35,0,Math.PI*2);
+        ctx.fill();
+      }else if(t===T.BARN_DONE){
+        ctx.fillStyle=`rgba(160,50,20,${br})`;
+        ctx.fillRect(Math.floor(x*tW+tW*.1),Math.floor(y*tH+tH*.2),Math.ceil(tW*.8),Math.ceil(tH*.7));
+        ctx.fillStyle=`rgba(220,70,30,${br})`;
+        ctx.beginPath();
+        ctx.moveTo(Math.floor(x*tW),Math.floor(y*tH+tH*.3));
+        ctx.lineTo(Math.floor(x*tW+tW*.5),Math.floor(y*tH));
+        ctx.lineTo(Math.floor(x*tW+tW),Math.floor(y*tH+tH*.3));
+        ctx.fill();
+      }else if(t===T.MARKET){
+        ctx.fillStyle=`rgba(80,40,140,${br})`;
+        ctx.fillRect(Math.floor(x*tW+tW*.1),Math.floor(y*tH+tH*.2),Math.ceil(tW*.8),Math.ceil(tH*.7));
+        // Awning
+        ctx.fillStyle=`rgba(200,60,60,${br})`;
+        ctx.fillRect(Math.floor(x*tW),Math.floor(y*tH+tH*.2),Math.ceil(tW),Math.ceil(tH*.15));
+      }
+    }
+  }
+
+  // Draw animals
+  ctx.font=`${Math.max(8,tW*.8)}px serif`;
+  ctx.textBaseline='middle';
+  animals.forEach(a=>{
+    // Bounce
+    a.x+=a.vx;a.y+=a.vy;
+    if(a.x<tW||a.x>W-tW)a.vx*=-1;
+    if(a.y<tH||a.y>H-tH*3)a.vy*=-1;
+    ctx.globalAlpha=stage.bright;
+    ctx.fillText(a.emoji,a.x,a.y);
+    ctx.globalAlpha=1;
+  });
+
+  // Character sprite
+  const cx2=Math.floor(WORLD_W/2)*tW;
+  const cy2=Math.floor(WORLD_H/2)*tH;
+  const dep2=getDependency();
+  const charBob=Math.sin(animFrame*.06)*1.5;
+  const charColor=dep2<50?`rgba(180,240,160,${stage.bright})`:`rgba(200,180,140,${stage.bright*.8})`;
+  ctx.fillStyle=charColor;
+  // Body
+  ctx.fillRect(cx2+tW*.2,cy2+tH*.3+charBob,tW*.6,tH*.5);
+  // Head
+  ctx.beginPath();
+  ctx.arc(cx2+tW*.5,cy2+tH*.15+charBob,tW*.3,0,Math.PI*2);
+  ctx.fill();
+
+  // Fog overlay
+  if(fogLevel>0.05){
+    // Radial fog — clear in center, foggy at edges
+    const cxPx=W/2,cyPx=H*.45;
+    const clearR=Math.max(30,W*(1-fogLevel)*.7);
+    const grad=ctx.createRadialGradient(cxPx,cyPx,clearR,cxPx,cyPx,Math.max(W,H));
+    grad.addColorStop(0,'rgba(6,10,12,0)');
+    grad.addColorStop(.5,`rgba(6,10,12,${fogLevel*.5})`);
+    grad.addColorStop(1,`rgba(6,10,12,${fogLevel})`);
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,W,H);
+
+    // Dense fog patches on empty tiles at edges
+    if(fogLevel>.3){
+      ctx.fillStyle=`rgba(8,12,10,${fogLevel*.4})`;
+      ctx.fillRect(0,0,W*.1,H);
+      ctx.fillRect(W*.9,0,W*.1,H);
+      ctx.fillRect(0,0,W,H*.08);
+      ctx.fillRect(0,H*.88,W,H*.12);
+    }
+  }
+}
+
+/* ============================================================
+   HUD UPDATER
+   ============================================================ */
+function renderHUD(){
+  const fp=getCurrentFP();
+  const tfp=getTotalFP();
+  const dep=getDependency();
+  const streak=getStreak();
+  const mult=getMultiplier();
+  const stage=getCurrentStage();
+
+  document.getElementById('fp-display').textContent=fp+' FP';
+  document.getElementById('streak-display').textContent=`🔥 ×${mult}`;
+  document.getElementById('dep-display').textContent=`dep ${dep}%`;
+  document.getElementById('stage-label').textContent=stage.name;
+
+  // Update game totalFP
+  const g=gameState();
+  if(tfp>g.totalFP){S.set('game',{...g,totalFP:tfp});}
+
+  checkAchievements();
+  maybeSnapshot();
+}
+
+/* ============================================================
+   SNAPSHOTS (auto)
+   ============================================================ */
+const SNAP_MILESTONES=[1,7,30,90,180,365];
+function maybeSnapshot(){
+  const days=Math.floor(daysSince(settings().lastCig));
+  const snaps=snapshots();
+  SNAP_MILESTONES.forEach(d=>{
+    if(days>=d&&!snaps[d]){
+      const snap={
+        day:d,
+        fp:getTotalFP(),
+        stage:getCurrentStage().name,
+        built:Object.keys(gameState().built||{}).join(', ')||'None',
+        dep:getDependency(),
+        fog:getCurrentStage().fog,
+        mapSeed:JSON.stringify({stageIdx:STAGES.indexOf(getCurrentStage()),built:gameState().built,crops:gameState().crops,animals:gameState().animals}),
+        savedAt:new Date().toISOString()
+      };
+      const ns={...snaps};ns[d]=snap;
+      S.set('snapshots',ns);
+    }
+  });
+}
+
+/* ============================================================
+   ACHIEVEMENTS CHECKER
+   ============================================================ */
+let achFlashTimer;
+function checkAchievements(){
+  const g=gameState();
+  const s=settings();
+  const unlocked=achievements();
+  ACHIEVEMENTS.forEach(a=>{
+    if(!unlocked[a.id]&&a.check(g,s)){
+      const nu={...unlocked};nu[a.id]=new Date().toISOString();
+      S.set('achievements',nu);
+      flashAchievement(a);
+    }
+  });
+}
+function flashAchievement(a){
+  document.getElementById('af-icon').textContent=a.icon;
+  document.getElementById('af-name').textContent=a.name;
+  document.getElementById('af-desc').textContent=a.desc;
+  const el=document.getElementById('ach-flash');
+  el.classList.add('show');
+  clearTimeout(achFlashTimer);
+  achFlashTimer=setTimeout(()=>el.classList.remove('show'),3500);
+}
+
+/* ============================================================
+   CRAVING MODAL
+   ============================================================ */
+let cravingTimer=null;
+let activeCraving={trigger:null,intensity:5};
+
+document.getElementById('open-craving').addEventListener('click',()=>{
+  activeCraving={trigger:null,intensity:5};
+  document.querySelectorAll('#trigger-chips .chip').forEach(c=>c.classList.remove('sel'));
+  document.getElementById('int-slider').value=5;
+  document.getElementById('int-val').textContent=5;
+  showCravingStep(1);
+  document.getElementById('craving-overlay').classList.add('open');
+});
+
+document.querySelectorAll('#trigger-chips .chip').forEach(c=>{
+  c.addEventListener('click',()=>{
+    document.querySelectorAll('#trigger-chips .chip').forEach(x=>x.classList.remove('sel'));
+    c.classList.add('sel');
+    activeCraving.trigger=c.dataset.t;
+  });
+});
+
+document.getElementById('int-slider').addEventListener('input',e=>{
+  document.getElementById('int-val').textContent=e.target.value;
+  activeCraving.intensity=parseInt(e.target.value);
+});
+
+document.getElementById('cr-start-btn').addEventListener('click',()=>{
+  if(!activeCraving.trigger){toast('Select a trigger first');return;}
+  activeCraving.time=new Date().toISOString();
+  showCravingStep(2);
+  document.getElementById('coach-box').textContent=coachMsg(activeCraving.trigger,activeCraving.intensity);
+  startTimer();
+});
+document.getElementById('cr-skip-btn').addEventListener('click',()=>{
+  clearInterval(cravingTimer);
+  showCravingStep(3);
+});
+document.getElementById('cr-yes').addEventListener('click',()=>saveCraving(true));
+document.getElementById('cr-no').addEventListener('click',()=>saveCraving(false));
+
+function showCravingStep(n){
+  [1,2,3].forEach(i=>document.getElementById('craving-s'+i).style.display=i===n?'block':'none');
+}
+function startTimer(){
+  let s=90;
+  const arc=document.getElementById('t-arc');
+  const num=document.getElementById('t-num');
+  const circ=276.46;
+  function tick(){
+    num.textContent=s;
+    arc.style.strokeDashoffset=circ*(1-(s/90));
+    if(s<=0){clearInterval(cravingTimer);showCravingStep(3);return;}
+    s--;
+  }
+  tick();
+  cravingTimer=setInterval(tick,1000);
+}
+function saveCraving(passed){
+  const list=cravings();
+  list.push({id:Date.now(),trigger:activeCraving.trigger,intensity:activeCraving.intensity,time:activeCraving.time||new Date().toISOString(),passed});
+  S.set('cravings',list);
+  document.getElementById('craving-overlay').classList.remove('open');
+  clearInterval(cravingTimer);
+  if(passed){
+    toast('🎉 Craving defeated! +FP');
+    // Bonus FP for defeating craving
+    const g=gameState();
+    S.set('game',{...g,totalFP:(g.totalFP||0)+5});
+  }else{
+    toast('💪 Logged. Keep going.');
+  }
+  checkAchievements();
+}
+
+// Close craving overlay on backdrop
+document.getElementById('craving-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('craving-overlay')){
+    document.getElementById('craving-overlay').classList.remove('open');
+    clearInterval(cravingTimer);
+  }
+});
+
+/* ============================================================
+   SHOP
+   ============================================================ */
+let shopCat='buildings';
+
+// Open shop from world (tap canvas builds menu, or add button)
+function openShop(){
+  renderShop();
+  document.getElementById('shop-overlay').classList.add('open');
+}
+
+function renderShop(){
+  const tabs=document.getElementById('shop-tabs');
+  const grid=document.getElementById('shop-grid');
+  const cats=['buildings','crops','animals','decor'];
+  tabs.innerHTML=cats.map(c=>`<button class="shop-tab ${c===shopCat?'active':''}" onclick="setShopCat('${c}')">${c.charAt(0).toUpperCase()+c.slice(1)}</button>`).join('');
+
+  const fp=getCurrentFP();
+  const days=daysSince(settings().lastCig);
+  const g=gameState();
+  const items=SHOP_ITEMS[shopCat]||[];
+
+  grid.innerHTML=items.map(item=>{
+    const locked=days<item.unlockDay;
+    const owned=(g.owned||[]).includes(item.id);
+    const built=g.built&&g.built[item.id]!==undefined;
+    let status='',cls='';
+    if(locked){cls='locked';status=`Unlocks day ${item.unlockDay}`;}
+    else if(owned||built){cls='owned';status='Owned';}
+    else{status=fp>=item.cost?`${item.cost} FP`:`Need ${item.cost-fp} more FP`;}
+    return`<div class="shop-item ${cls}" onclick="buyItem('${item.id}','${shopCat}')">
+      <span class="si-icon">${item.icon}</span>
+      <div class="si-name">${item.name}</div>
+      ${owned||built?`<div class="si-owned">✓ ${status}</div>`:`<div class="si-cost">${status}</div>`}
+    </div>`;
+  }).join('');
+}
+
+function setShopCat(cat){shopCat=cat;renderShop();}
+
+function buyItem(id,cat){
+  const items=SHOP_ITEMS[cat];
+  const item=items.find(i=>i.id===id);
+  if(!item)return;
+  const g=gameState();
+  const owned=g.owned||[];
+  if(owned.includes(id)){toast('Already owned');return;}
+  if(cat==='buildings'&&g.built&&g.built[id]!==undefined){toast('Already building');return;}
+
+  const fp=getCurrentFP();
+  if(fp<item.cost){toast(`Need ${item.cost-fp} more FP`);return;}
+
+  // Deduct cost
+  S.set('game',{...g,spentFP:(g.spentFP||0)+item.cost});
+  const ng=gameState();
+
+  if(cat==='buildings'){
+    const nb={...(ng.built||{})};nb[id]=0;
+    S.set('game',{...ng,built:nb});
+    toast(`🏗️ ${item.name} construction started!`);
+  }else if(cat==='crops'){
+    const nc=[...(ng.crops||[])];nc.push(id);
+    S.set('game',{...ng,crops:nc});
+    toast(`🌱 ${item.name} planted!`);
+  }else if(cat==='animals'){
+    const na=[...(ng.animals||[])];na.push(id);
+    S.set('game',{...ng,animals:na,owned:[...(ng.owned||[]),id]});
+    toast(`${item.icon} ${item.name} joined your farm!`);
+    generateWorld();
+  }else{
+    S.set('game',{...ng,owned:[...(ng.owned||[]),id]});
+    toast(`${item.icon} ${item.name} added!`);
+  }
+
+  generateWorld();
+  checkAchievements();
+  renderHUD();
+  renderShop();
+}
+
+document.getElementById('shop-close').addEventListener('click',()=>{
+  document.getElementById('shop-overlay').classList.remove('open');
+});
+
+// Tap canvas to open shop (bottom area)
+document.getElementById('world-canvas').addEventListener('click',e=>{
+  const rect=e.currentTarget.getBoundingClientRect();
+  const y=e.clientY-rect.top;
+  if(y>rect.height*.7)openShop();
+});
+
+/* ============================================================
+   BUILD MODAL (advance construction)
+   ============================================================ */
+const BUILD_STAGES=['Foundation','Walls','Framework','Windows','Doors','Roof','Chimney'];
+const BUILD_COST=20;
+
+function openBuild(bid){
+  const g=gameState();
+  const stage=g.built[bid]||0;
+  document.getElementById('build-title').textContent=`Build: ${bid.charAt(0).toUpperCase()+bid.slice(1)}`;
+  const stagesEl=document.getElementById('build-stages');
+  stagesEl.innerHTML=BUILD_STAGES.map((s2,i)=>{
+    const done=i<stage;
+    const current=i===stage;
+    return`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--ui-border)">
+      <span style="font-size:14px">${done?'✅':current?'🔨':'🔒'}</span>
+      <span style="font-size:11px;flex:1;color:${done?'var(--fp)':current?'var(--text)':'var(--text-dim)'}">${s2}</span>
+      ${current?`<button onclick="advanceBuild('${bid}')" style="background:rgba(126,232,162,.15);border:1px solid var(--fp);color:var(--fp);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;cursor:pointer">${BUILD_COST} FP</button>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('build-overlay').classList.add('open');
+}
+
+function advanceBuild(bid){
+  const fp=getCurrentFP();
+  if(fp<BUILD_COST){toast('Not enough FP');return;}
+  const g=gameState();
+  const s2=(g.built[bid]||0)+1;
+  const nb={...g.built};
+  nb[bid]=s2;
+  S.set('game',{...g,built:nb,spentFP:(g.spentFP||0)+BUILD_COST});
+  generateWorld();
+  renderHUD();
+  if(s2>=BUILD_STAGES.length){
+    toast(`🏠 ${bid} complete!`);
+    document.getElementById('build-overlay').classList.remove('open');
+  }else{
+    openBuild(bid);
+  }
+}
+
+document.getElementById('build-close').addEventListener('click',()=>{
+  document.getElementById('build-overlay').classList.remove('open');
+});
+document.getElementById('build-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('build-overlay'))document.getElementById('build-overlay').classList.remove('open');
+});
+document.getElementById('shop-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('shop-overlay'))document.getElementById('shop-overlay').classList.remove('open');
+});
+
+/* ============================================================
+   PROGRESS PAGE
+   ============================================================ */
+let chartInstances={};
+
+function renderProgress(){
+  const{days,avoided,saved}=calcFP();
+  const fp=getTotalFP();
+  document.getElementById('p-days').textContent=Math.floor(days);
+  document.getElementById('p-avoided').textContent=avoided;
+  document.getElementById('p-saved').textContent='$'+saved;
+  document.getElementById('p-fp').textContent=fp;
+
+  // Health timeline
+  const tl=document.getElementById('health-tl');
+  tl.innerHTML=HEALTH_MILES.map(m=>{
+    const done=days>=m.days;
+    return`<div class="hl-item">
+      <div class="hl-dot ${done?'done':'pending'}"></div>
+      <div class="hl-text"><b>${m.label}</b> — ${m.text}</div>
+    </div>`;
+  }).join('');
+
+  // Craving stats
+  const list=cravings();
+  const total=list.length,won=list.filter(c=>c.passed).length;
+  document.getElementById('p-ctotal').textContent=total;
+  document.getElementById('p-cwin').textContent=won;
+  document.getElementById('p-crate').textContent=total>0?Math.round(won/total*100)+'%':'—';
+
+  if(typeof Chart==='undefined'){return;}
+
+  // Destroy old
+  Object.values(chartInstances).forEach(c=>{try{c.destroy()}catch{}});
+  chartInstances={};
+
+  const chartOpts={
+    color:'#8aaa78',
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{ticks:{color:'#3a5030',font:{size:9}},grid:{color:'rgba(60,80,50,.2)'}},
+      y:{ticks:{color:'#3a5030',font:{size:9}},grid:{color:'rgba(60,80,50,.2)'},beginAtZero:true}
+    }
+  };
+
+  // Trigger chart
+  const triggers=['Coffee','After Meal','Stress','Social','Boredom','Alcohol','Driving','Other'];
+  const tCounts=triggers.map(t=>list.filter(c=>c.trigger===t).length);
+  const ctx1=document.getElementById('chart-triggers').getContext('2d');
+  chartInstances.t=new Chart(ctx1,{
+    type:'bar',
+    data:{labels:triggers,datasets:[{data:tCounts,backgroundColor:'rgba(126,232,162,.5)',borderRadius:3}]},
+    options:{...chartOpts,maintainAspectRatio:false}
+  });
+
+  // Daily chart
+  const labels=[],vals=[];
+  for(let i=13;i>=0;i--){
+    const d=new Date();d.setDate(d.getDate()-i);
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    labels.push(d.toLocaleDateString([],{month:'short',day:'numeric'}));
+    vals.push(list.filter(c=>c.time.slice(0,10)===k).length);
+  }
+  const ctx2=document.getElementById('chart-daily').getContext('2d');
+  chartInstances.d=new Chart(ctx2,{
+    type:'line',
+    data:{labels,datasets:[{data:vals,borderColor:'var(--fp)',backgroundColor:'rgba(126,232,162,.08)',fill:true,tension:.3,pointRadius:2}]},
+    options:{...chartOpts,maintainAspectRatio:false}
+  });
+}
+
+/* ============================================================
+   GALLERY PAGE
+   ============================================================ */
+function renderGallery(){
+  const snaps=snapshots();
+  const thumbs=document.getElementById('gallery-thumbs');
+  thumbs.innerHTML=SNAP_MILESTONES.map(d=>{
+    const snap=snaps[d];
+    return`<div class="snap-thumb ${snap?'':'empty'} ${selectedSnap===d?'active':''}" onclick="viewSnap(${d})">
+      <div class="snap-label">Day ${d}</div>
+      <canvas class="snap-preview" id="sp-${d}" width="60" height="60"></canvas>
+    </div>`;
+  }).join('');
+
+  // Draw tiny previews
+  SNAP_MILESTONES.forEach(d=>{
+    const snap=snaps[d];
+    const c=document.getElementById('sp-'+d);
+    if(!c)return;
+    const ctx=c.getContext('2d');
+    if(!snap){
+      ctx.fillStyle='#0a0e08';ctx.fillRect(0,0,60,60);
+      ctx.fillStyle='rgba(60,80,50,.3)';
+      ctx.font='20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('?',30,30);
+      return;
+    }
+    // Draw mini world
+    try{
+      const data=JSON.parse(snap.mapSeed);
+      const stIdx=data.stageIdx||0;
+      const st=STAGES[stIdx];
+      const br=st?st.bright:.3;
+      ctx.fillStyle=`rgb(${Math.floor(14*br)},${Math.floor(30*br)},${Math.floor(10*br)})`;
+      ctx.fillRect(0,0,60,60);
+      ctx.fillStyle=`rgba(30,90,20,${.6*br})`;ctx.fillRect(10,10,40,40);
+      if(stIdx>=1){ctx.fillStyle=`rgba(60,40,20,${br})`;ctx.fillRect(28,10,4,40);ctx.fillRect(10,28,40,4);}
+      if(stIdx>=2){ctx.fillStyle=`rgba(140,40,30,${br})`;ctx.fillRect(34,22,8,8);}
+      const fog=st?st.fog:.9;
+      ctx.fillStyle=`rgba(6,10,12,${fog})`;
+      ctx.beginPath();ctx.arc(30,30,20,0,Math.PI*2);
+      const mg=ctx.createRadialGradient(30,30,20,30,30,30);
+      mg.addColorStop(0,'rgba(6,10,12,0)');mg.addColorStop(1,`rgba(6,10,12,${fog})`);
+      ctx.fillStyle=mg;ctx.fillRect(0,0,60,60);
+    }catch{}
+  });
+
+  if(selectedSnap)viewSnap(selectedSnap);
+}
+
+let selectedSnap=null;
+function viewSnap(d){
+  selectedSnap=d;
+  const snaps=snapshots();
+  const snap=snaps[d];
+  const canvas=document.getElementById('gallery-canvas');
+  const ctx=canvas.getContext('2d');
+  canvas.width=320;canvas.height=240;
+
+  if(!snap){
+    ctx.fillStyle='#0a0e0a';ctx.fillRect(0,0,320,240);
+    ctx.fillStyle='rgba(60,80,50,.4)';ctx.font='14px monospace';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(`Day ${d} — Not yet reached`,160,120);
+    document.getElementById('gi-day').textContent='—';
+    document.getElementById('gi-fp').textContent='—';
+    document.getElementById('gi-stage').textContent='—';
+    document.getElementById('gi-builds').textContent='—';
+    renderGallery();
+    return;
+  }
+
+  // Draw reconstructed world
+  try{
+    const data=JSON.parse(snap.mapSeed);
+    const stIdx=data.stageIdx||0;
+    const st=STAGES[stIdx];
+    const br=st?st.bright:.3;
+    const tW=320/WORLD_W,tH=240/WORLD_H;
+    const cx=WORLD_W/2,cy=WORLD_H/2;
+
+    ctx.fillStyle='#060a06';ctx.fillRect(0,0,320,240);
+
+    // Simple reconstruction
+    for(let y=0;y<WORLD_H;y++){
+      for(let x=0;x<WORLD_W;x++){
+        const dx=x-cx,dy=y-cy;
+        const dist=Math.sqrt(dx*dx+dy*dy);
+        const radii=[2,4,7,10,13,16,18];
+        const r=radii[Math.min(stIdx,radii.length-1)];
+        if(dist>r){ctx.fillStyle='#0a0e08';ctx.fillRect(x*tW,y*tH,tW+1,tH+1);continue;}
+        let col='#1e3d12';
+        if(dist<1){col='#2a2808';}
+        const ri=Math.floor(parseInt(col.slice(1,3),16)*br);
+        const gi=Math.floor(parseInt(col.slice(3,5),16)*br);
+        const bi=Math.floor(parseInt(col.slice(5,7),16)*br);
+        ctx.fillStyle=`rgb(${ri},${gi},${bi})`;
+        ctx.fillRect(x*tW,y*tH,tW+1,tH+1);
+      }
+    }
+
+    // Fog
+    const fog=snap.fog||.9;
+    const mg=ctx.createRadialGradient(160,120,Math.max(20,100*(1-fog)),160,120,200);
+    mg.addColorStop(0,'rgba(6,10,12,0)');
+    mg.addColorStop(.6,`rgba(6,10,12,${fog*.4})`);
+    mg.addColorStop(1,`rgba(6,10,12,${fog})`);
+    ctx.fillStyle=mg;ctx.fillRect(0,0,320,240);
+  }catch(e){
+    ctx.fillStyle='#0a0e0a';ctx.fillRect(0,0,320,240);
+  }
+
+  document.getElementById('gi-day').textContent='Day '+snap.day;
+  document.getElementById('gi-fp').textContent=snap.fp+' FP';
+  document.getElementById('gi-stage').textContent=snap.stage;
+  document.getElementById('gi-builds').textContent=snap.built||'None';
+
+  // Re-render thumbs to update active state
+  document.querySelectorAll('.snap-thumb').forEach(t=>{
+    t.classList.remove('active');
+  });
+  const idx=SNAP_MILESTONES.indexOf(d);
+  const thumbEls=document.querySelectorAll('.snap-thumb');
+  if(thumbEls[idx])thumbEls[idx].classList.add('active');
+}
+
+/* ============================================================
+   SETTINGS PAGE
+   ============================================================ */
+function renderSettingsPage(){
+  const s=settings();
+  document.getElementById('s-lastcig').textContent=fmtDate(s.lastCig);
+  document.getElementById('s-cpd').textContent=s.cpd+'/day';
+  document.getElementById('s-cost').textContent='$'+s.costPack;
+
+  const unlocked=achievements();
+  const el=document.getElementById('ach-gallery');
+  el.innerHTML=ACHIEVEMENTS.map(a=>`
+    <div class="ach-card ${unlocked[a.id]?'unlocked':'locked'}">
+      <div class="ac-icon">${a.icon}</div>
+      <div class="ac-name">${a.name}</div>
+      ${unlocked[a.id]?'<div class="ac-badge">✓</div>':''}
+    </div>`).join('');
+}
+
+// Open settings edit
+document.getElementById('open-sedit').addEventListener('click',()=>{
+  const s=settings();
+  if(s.lastCig){
+    const d=new Date(s.lastCig);
+    document.getElementById('se-dt').value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  }
+  document.getElementById('se-cpd').value=s.cpd;
+  document.getElementById('se-cost').value=s.costPack;
+  document.getElementById('se-cpp').value=s.cpp;
+  document.getElementById('sedit-overlay').classList.add('open');
+});
+document.getElementById('se-save').addEventListener('click',()=>{
+  const dt=document.getElementById('se-dt').value;
+  const cpd=parseInt(document.getElementById('se-cpd').value);
+  const cost=parseFloat(document.getElementById('se-cost').value);
+  const cpp=parseInt(document.getElementById('se-cpp').value);
+  if(!dt||!cpd||!cost||!cpp){toast('Fill in all fields');return;}
+  S.set('settings',{lastCig:new Date(dt).toISOString(),cpd,costPack:cost,cpp});
+  document.getElementById('sedit-overlay').classList.remove('open');
+  toast('Settings saved');
+  renderSettingsPage();
+  generateWorld();
+  renderHUD();
+});
+document.getElementById('se-cancel').addEventListener('click',()=>document.getElementById('sedit-overlay').classList.remove('open'));
+document.getElementById('sedit-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('sedit-overlay'))document.getElementById('sedit-overlay').classList.remove('open');});
+
+// Export
+document.getElementById('export-btn').addEventListener('click',()=>{
+  const data={settings:settings(),game:gameState(),cravings:cravings(),snapshots:snapshots(),achievements:achievements(),app:'FreedomFarm_v1',exported:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='freedom-farm-backup.json';a.click();
+  URL.revokeObjectURL(url);
+  toast('Data exported');
+});
+
+// Import
+document.getElementById('import-btn').addEventListener('click',()=>document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(!d.app)throw new Error('Invalid');
+      if(d.settings)S.set('settings',d.settings);
+      if(d.game)S.set('game',d.game);
+      if(d.cravings)S.set('cravings',d.cravings);
+      if(d.snapshots)S.set('snapshots',d.snapshots);
+      if(d.achievements)S.set('achievements',d.achievements);
+      toast('Data restored ✓');
+      generateWorld();renderHUD();renderSettingsPage();
+    }catch{toast('Invalid backup file');}
+  };
+  r.readAsText(f);e.target.value='';
+});
+
+// Reset
+document.getElementById('reset-btn').addEventListener('click',()=>{
+  if(confirm('Reset your entire world? This cannot be undone.')){
+    ['settings','game','cravings','snapshots','achievements'].forEach(k=>S.del(k));
+    worldMap=null;animals=[];
+    checkFirstLaunch();
+  }
+});
+
+/* ============================================================
+   ONBOARDING
+   ============================================================ */
+function checkFirstLaunch(){
+  const s=settings();
+  const ob=document.getElementById('onboard');
+  if(!s.lastCig){
+    ob.style.display='flex';
+    const now=new Date();
+    document.getElementById('ob-dt').value=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  }else{
+    ob.style.display='none';
+    init();
+  }
+}
+
+document.getElementById('ob-start').addEventListener('click',()=>{
+  const dt=document.getElementById('ob-dt').value;
+  const cpd=parseInt(document.getElementById('ob-cpd').value);
+  const cost=parseFloat(document.getElementById('ob-cost').value);
+  const cpp=parseInt(document.getElementById('ob-cpp').value);
+  if(!dt){toast('Set your quit date');return;}
+  if(!cpd||cpd<1){toast('Enter cigarettes/day');return;}
+  if(!cost||cost<=0){toast('Enter pack cost');return;}
+  if(!cpp||cpp<1){toast('Enter cigarettes per pack');return;}
+  S.set('settings',{lastCig:new Date(dt).toISOString(),cpd,costPack:cost,cpp});
+  document.getElementById('onboard').style.display='none';
+  init();
+  toast('🌱 Your world is growing…');
+  // Show first insight after 3s
+  setTimeout(showInsight,3000);
+});
+
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+let loopId=null;
+function gameLoop(){
+  if(activePage==='world'){
+    drawWorld();
+    renderHUD();
+  }
+  loopId=requestAnimationFrame(gameLoop);
+}
+
+function init(){
+  generateWorld();
+  renderHUD();
+  if(!loopId)gameLoop();
+  // Daily insight at 10% chance on world open
+  if(Math.random()<0.1)setTimeout(showInsight,2000);
+  // Snap check
+  maybeSnapshot();
+}
+
+checkFirstLaunch();
+</script>
+</body>
+</html>
