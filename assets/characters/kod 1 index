@@ -1,0 +1,30 @@
+/* ============================================================
+   CHARACTER SPRITE
+   ============================================================ */
+const charSprite = new Image();
+charSprite.src = 'assets/character3.png';
+
+const FRAME = 32;
+const WALK_ROWS = { down:1, left:3, up:5 };
+const IDLE_ROWS = { down:0, left:2, up:4 };
+
+function drawCharacter(ctx, px, py, w, h, dir, moving){
+  if(!charSprite.complete) return;
+
+  let row, flip = false;
+  if(dir === 'right'){ row = moving ? WALK_ROWS.left : IDLE_ROWS.left; flip = true; }
+  else row = moving ? WALK_ROWS[dir] : IDLE_ROWS[dir];
+
+  const frameCount = moving ? 6 : 2;
+  const frame = Math.floor(animFrame/8) % frameCount;
+
+  ctx.save();
+  if(flip){
+    ctx.translate(px + w, py);
+    ctx.scale(-1, 1);
+    ctx.drawImage(charSprite, frame*FRAME, row*FRAME, FRAME, FRAME, 0, 0, w, h);
+  } else {
+    ctx.drawImage(charSprite, frame*FRAME, row*FRAME, FRAME, FRAME, px, py, w, h);
+  }
+  ctx.restore();
+}
