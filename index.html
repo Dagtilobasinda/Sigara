@@ -1287,13 +1287,74 @@ function drawWorld(){
     ctx.globalAlpha=1;
   });
 
-  // Character sprite
- const cx2=Math.floor(WORLD_W/2)*tW;
-  const cy2=Math.floor(WORLD_H/2)*tH;
-  const charBob=Math.sin(animFrame*.06)*1.5;
-  const charH = tH*1.6;
-  const charW = tW*1.6;
-  drawCharacter(ctx, cx2-(charW-tW)/2, cy2-(charH-tH)+charBob, charW, charH, 'down', false);
+// ── CHARACTER SPRITE ────────────────────────────────────
+// Sprite sheet: Assets/characters/character3.png
+// Her kare: 48x48px | 4 sütun | 4 satır
+// Satırlar: 0=Aşağı, 1=Sol, 2=Sağ, 3=Yukarı
+
+const CHAR_FRAME_W = 48;   // Bir karenin genişliği (px)
+const CHAR_FRAME_H = 48;   // Bir karenin yüksekliği (px)
+const CHAR_COLS    = 4;    // Sütun sayısı
+const CHAR_ANIM_SPEED = 12; // Kaç frame'de bir kare değişsin
+
+// Sprite yüklenmediyse yükle (bir kez)
+if (!window._charSprite) {
+  window._charSprite = new Image();
+  window._charSprite.src = 'Assets/characters/character3.png';
+  window._charSprite.onerror = () => { window._charSpriteError = true; };
+}
+
+const cx2 = Math.floor(WORLD_W / 2) * tW;
+const cy2 = Math.floor(WORLD_H / 2) * tH;
+
+// Karakterin yürüyüş yönü (0=aşağı, 1=sol, 2=sağ, 3=yukarı)
+// Şimdilik idle (duruyor), ileride hareket eklenebilir
+if (!window._charDir)       window._charDir = 0;
+if (!window._charMoving)    window._charMoving = false;
+
+// Hangi animasyon karesindeyiz?
+const animCol = window._charMoving
+  ? Math.floor(animFrame / CHAR_ANIM_SPEED) % 3  // 3 yürüyüş karesi
+  : 1;                                             // orta kare = duruş
+
+const spriteX = animCol * CHAR_FRAME_W;
+const spriteY = window._charDir * CHAR_FRAME_H;
+
+// Karakteri canvas'a çiz
+if (window._charSprite && window._charSprite.complete && !window._charSpriteError) {
+  const charW = tW * 1.8;   // Ekrandaki genişlik (tile'a göre ölçekli)
+  const charH = tH * 2.2;   // Ekrandaki yükseklik
+  const charBob = Math.sin(animFrame * .06) * 1.5; // Hafif yukarı-aşağı
+
+  ctx.globalAlpha = stage.bright;
+  ctx.imageSmoothingEnabled = false; // Pixel-art — bulanıklaştırma YOK
+
+  ctx.drawImage(
+    window._charSprite,
+    spriteX,           // Sprite sheet'ten kesmeye başla X
+    spriteY,           // Sprite sheet'ten kesmeye başla Y
+    CHAR_FRAME_W,      // Kesilenin genişliği
+    CHAR_FRAME_H,      // Kesilenin yüksekliği
+    cx2 - charW / 2,            // Canvas'ta çizilecek X
+    cy2 - charH / 2 + charBob,  // Canvas'ta çizilecek Y
+    charW,             // Canvas'ta çizilecek genişlik
+    charH              // Canvas'ta çizilecek yükseklik
+  );
+
+  ctx.globalAlpha = 1;
+} else {
+  // Sprite yüklenmediyse eski basit çizim (fallback)
+  const dep2 = getDependency();
+  const charBob = Math.sin(animFrame * .06) * 1.5;
+  const charColor = dep2 < 50
+    ? `rgba(180,240,160,${stage.bright})`
+    : `rgba(200,180,140,${stage.bright * .8})`;
+  ctx.fillStyle = charColor;
+  ctx.fillRect(cx2 + tW * .2, cy2 + tH * .3 + charBob, tW * .6, tH * .5);
+  ctx.beginPath();
+  ctx.arc(cx2 + tW * .5, cy2 + tH * .15 + charBob, tW * .3, 0, Math.PI * 2);
+  ctx.fill();
+}
 
   // Fog overlay
   if(fogLevel>0.05){
